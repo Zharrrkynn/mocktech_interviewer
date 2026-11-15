@@ -37,7 +37,7 @@ capabilities are available.
 ### Demo mode
 
 Anywhere else — on GitHub Pages, or when `index.html` is opened directly — the page switches
-to **demo mode**, shown by a banner at the top. Demo mode replays one pre-recorded example
+to **demo mode**, shown by the "Demo · recorded interview" tag in the header. Demo mode replays one pre-recorded example
 interview (questions, student answers, rubric scores and the final report), including a
 prompt-injection attempt that receives 0. No API key is stored in this repository.
 

@@ -78,7 +78,7 @@ tr.click:hover td{background:#faf8f3}
 <body>
 <header><div class="hwrap">
   <div class="logo" id="home-link"><div class="mk">MT</div>MockTech Interviewer</div>
-  <span class="ai">AI-generated questions and scores are estimates</span>
+  <span class="ai" id="aipill">AI-generated questions and scores are estimates</span>
   <div class="sp"></div>
   <nav class="nav"><button id="nav-new">New interview</button><button id="nav-hist">History</button></nav>
   <span class="who" id="who"></span>
@@ -94,7 +94,9 @@ const TOPICS=[
 const SUBTOPICS=["sorting","searching","complexity analysis","recursion","hashing","graph traversal (BFS/DFS)","shortest paths","dynamic programming","greedy algorithms","binary trees","heaps and priority queues","stacks and queues"];
 const N=5;
 const LIVE_URL="https://claude.ai/artifact/BKUSoxeJCNXa8chYZbN3Dz";
-let DEMO_MODE=false;
+const HAS_RUNTIME=(typeof window.claude!=="undefined")&&window.claude&&typeof window.claude.use==="function";
+let DEMO_MODE=!HAS_RUNTIME;
+let READY=!HAS_RUNTIME;
 const DEMO={id:"demo15nov",topic:"Algorithms",createdAt:Date.parse("2026-11-15T17:40:00+05:00"),status:"done",
  questions:[
   {subtopic:"hashing",question:"How does a hash table handle collisions? Name two strategies and explain how each works.",key_points:["separate chaining","open addressing / probing","load factor","rehashing"],
@@ -131,9 +133,9 @@ function fmtDate(t){const d=new Date(t);return d.toLocaleDateString(undefined,{d
 
 // ---------- capabilities ----------
 (async()=>{
-  try{ sample=await claude.use("sample"); }catch(e){ sample=null; }
-  try{ userCap=await claude.use("user"); }catch(e){ userCap=null; }
-  try{ db=await claude.use("db"); }catch(e){ db=null; }
+  if(!HAS_RUNTIME){ state.history=[demoCopy()]; state.histLoaded=true; render(); return; }
+  const safe=n=>Promise.resolve().then(()=>claude.use(n)).catch(()=>null);
+  [sample,userCap,db]=await Promise.all([safe("sample"),safe("user"),safe("db")]);
   try{ uid=userCap? await userCap.id() : null; }catch(e){ uid=null; }
   try{
     if(userCap&&uid){ const ps=await userCap.profiles([uid]); const nm=(ps&&ps[uid]&&ps[uid].name)||""; document.getElementById("who").textContent=nm?("Signed in: "+nm):"Signed in"; }
@@ -141,6 +143,7 @@ function fmtDate(t){const d=new Date(t);return d.toLocaleDateString(undefined,{d
   DEMO_MODE=!sample;
   if(DEMO_MODE){ state.history=[demoCopy()]; state.histLoaded=true; }
   else await resumeIfAny();
+  READY=true;
   render();
 })();
 
@@ -247,6 +250,7 @@ Give at least 2 weak points, taken from the lowest-scoring answers.`;
   return {strengths:(j.strengths||[]).map(String).slice(0,3),weak:(j.weak_points||[]).slice(0,4).map(w=>({subtopic:String(w.subtopic||""),issue:String(w.issue||""),revise:String(w.revise||"")})),summary:String(j.summary||"")};
 }
 
+function toDemo(){ DEMO_MODE=true; state.history=[demoCopy()]; state.histLoaded=true; state.session=null; state.view="home"; state.msg=null; state.busy=false; render(); }
 function setMsg(type,text){state.msg={type,text};render();}
 function errText(e){
   if(e&&e.code==="no_ai") return "The AI service is not available in this view. Open the page on claude.ai while signed in.";
@@ -257,7 +261,7 @@ function errText(e){
 
 // ---------- actions ----------
 async function startInterview(){
-  if(state.busy) return;
+  if(state.busy||!READY) return;
   if(DEMO_MODE){ state.session={id:DEMO.id,topic:DEMO.topic,createdAt:DEMO.createdAt,status:"active",questions:[],report:null}; state.view="interview"; state.msg=null; await nextQuestion(); return; }
   state.session={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),topic:"Algorithms",createdAt:Date.now(),status:"active",questions:[],report:null};
   state.view="interview"; state.msg=null; await nextQuestion();
@@ -265,7 +269,7 @@ async function startInterview(){
 async function nextQuestion(){
   state.busy=true; state.msg=null; render();
   try{ const q=await genQuestion(); state.session.questions.push(q); state.msg=null; await saveSession(); }
-  catch(e){ state.msg={type:"bad",text:errText(e)}; }
+  catch(e){ if(e&&(e.code==="no_ai"||e.code==="not_granted")){ toDemo(); return; } state.msg={type:"bad",text:errText(e)}; }
   state.busy=false; render();
   const ta=document.getElementById("ans"); if(ta) ta.focus();
 }
@@ -276,24 +280,25 @@ async function submitAnswer(){
   q.answer=txt; await saveSession(); // saved before the AI call
   state.busy=true; state.msg=null; render();
   try{ q.score=await evaluate(q); state.msg=null; await saveSession(); }
-  catch(e){ state.msg={type:"bad",text:errText(e)}; }
+  catch(e){ if(e&&(e.code==="no_ai"||e.code==="not_granted")){ toDemo(); return; } state.msg={type:"bad",text:errText(e)}; }
   state.busy=false; render();
 }
 async function finish(){
   state.busy=true; state.msg=null; render();
   try{ state.session.report=await makeReport(); state.session.status="done"; state.msg=null; await saveSession(); if(!DEMO_MODE) await loadHistory(); state.view="report"; }
-  catch(e){ state.msg={type:"bad",text:errText(e)}; }
+  catch(e){ if(e&&(e.code==="no_ai"||e.code==="not_granted")){ toDemo(); return; } state.msg={type:"bad",text:errText(e)}; }
   state.busy=false; render();
 }
 
 // ---------- views ----------
 function render(){
+  const pill=document.getElementById("aipill"); if(pill) pill.textContent=DEMO_MODE?"Demo · recorded interview":"AI-generated questions and scores are estimates";
   if(state.view==="home") return renderHome();
   if(state.view==="interview") return renderInterview();
   if(state.view==="report") return renderReport();
   if(state.view==="history") return renderHistory();
 }
-function demoBanner(){ return DEMO_MODE?`<div class="note warn" style="margin:0 0 16px"><b>Demo mode:</b> this page replays a pre-recorded example interview, because live AI scoring is not available on this site. Try the live version with real AI questions and scoring: <a href="${LIVE_URL}" target="_blank" rel="noopener">${LIVE_URL}</a></div>`:""; }
+function demoBanner(){ return ""; }
 function msgHtml(){ return state.msg?`<div class="note ${state.msg.type}">${esc(state.msg.text)}</div>`:""; }
 
 function renderHome(){
@@ -303,8 +308,8 @@ function renderHome(){
   <div class="card">
     <div class="lbl">Choose a topic</div>
     <div class="grid g3">${TOPICS.map(t=>`<button class="topic ${t.id===state.topic?"sel":""}" data-t="${t.id}" ${t.enabled?"":"disabled"}><b>${t.name}</b><span class="muted">${t.desc}</span><br>${t.enabled?'<span class="tag">Available</span>':'<span class="tag">Release 2</span>'}</button>`).join("")}</div>
-    <div class="row" style="margin-top:18px"><button class="btn" id="start" ${state.busy?"disabled":""}>${DEMO_MODE?"Play recorded interview":"Start interview"}</button>
-    <span class="muted">${DEMO_MODE?"Replays one recorded session with its AI scores.":"About 5 minutes."}</span></div>
+    <div class="row" style="margin-top:18px"><button class="btn" id="start" ${state.busy||!READY?"disabled":""}>${!READY?"Connecting…":(DEMO_MODE?"Play recorded interview":"Start interview")}</button>
+    <span class="muted">${!READY?"":(DEMO_MODE?`Replays one recorded session. <a href="${LIVE_URL}" target="_blank" rel="noopener" style="color:var(--brand)">Live version</a>`:"About 5 minutes.")}</span></div>
     ${msgHtml()}
   </div>`;
   app.querySelectorAll(".topic").forEach(b=>b.onclick=()=>{state.topic=b.dataset.t;render();});
