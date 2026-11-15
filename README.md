@@ -6,7 +6,9 @@ Team Project 2 (Project Management, Astana IT University, Group SE-2421).
 A student chooses a topic, answers five technical questions and gets each answer scored
 by a large language model on a fixed rubric, followed by a final feedback report.
 
-**Live prototype:** https://claude.ai/artifact/BKUSoxeJCNXa8chYZbN3Dz
+**Live prototype (real AI scoring):** https://claude.ai/artifact/BKUSoxeJCNXa8chYZbN3Dz
+
+**Website (demo mode):** https://zharrrkynn.github.io/mocktech_interviewer/
 
 ## Features and user stories
 
@@ -29,8 +31,15 @@ Claude artifact and uses the artifact runtime for three things:
 - `db` — stores each user's interviews in a private per-user collection;
 - `user` — identifies the signed-in user.
 
-Opening `index.html` directly in a browser shows the interface, but the AI features and
-history only work at the live link above, where these capabilities are available.
+Live AI questions, scoring and history work only at the live link above, where these
+capabilities are available.
+
+### Demo mode
+
+Anywhere else — on GitHub Pages, or when `index.html` is opened directly — the page switches
+to **demo mode**, shown by a banner at the top. Demo mode replays one pre-recorded example
+interview (questions, student answers, rubric scores and the final report), including a
+prompt-injection attempt that receives 0. No API key is stored in this repository.
 
 ## Repository contents
 
